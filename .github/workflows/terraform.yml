@@ -1,4 +1,4 @@
-name: 'Terraform S3 Bucket Deployment (IAM Role)'
+name: 'Terraform S3 Bucket Deployment (Hybrid Auth)'
 
 on:
   push:
@@ -23,50 +23,58 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
 
-    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
     defaults:
       run:
         shell: bash
 
     steps:
-    # Checkout the repository to the GitHub Actions runner
     - name: Checkout
       uses: actions/checkout@v4
 
-    # Configure AWS credentials using IAM Role (more secure than access keys)
+    # Try IAM Role first (preferred method)
     - name: Configure AWS credentials using IAM Role
+      id: role-auth
+      continue-on-error: true
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActions-S3-Role
         aws-region: ${{ env.AWS_REGION }}
         role-session-name: GitHubActions-Terraform-Session
 
-    # Verify AWS Identity (for debugging)
+    # Fallback to IAM User if role fails
+    - name: Configure AWS credentials using IAM User (Fallback)
+      if: steps.role-auth.outcome == 'failure'
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_BACKUP }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_BACKUP }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    # Verify which authentication method worked
     - name: Verify AWS Identity
       run: |
         echo "🔐 Current AWS Identity:"
         aws sts get-caller-identity
-        echo "📊 AWS Identity verified successfully!"
+        if [[ "${{ steps.role-auth.outcome }}" == "success" ]]; then
+          echo "✅ Using IAM Role (Secure Method)"
+        else
+          echo "⚠️  Using IAM User (Fallback Method)"
+        fi
 
-    # Install the latest version of Terraform CLI
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: ${{ env.TF_VERSION }}
 
-    # Initialize a new or existing Terraform working directory
     - name: Terraform Init
       run: terraform init
 
-    # Checks that all Terraform configuration files adhere to a canonical format
     - name: Terraform Format
       run: terraform fmt -check
 
-    # Validates the configuration files in a directory
     - name: Terraform Validate
       run: terraform validate
 
-    # Generates an execution plan for Terraform
     - name: Terraform Plan
       run: |
         terraform plan -input=false \
@@ -74,17 +82,14 @@ jobs:
           -var="environment=${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}" \
           -out=tfplan
 
-    # Apply the Terraform plan (only on push to main branch)
     - name: Terraform Apply
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: terraform apply -auto-approve tfplan
 
-    # Show outputs
     - name: Terraform Output
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: terraform output
 
-    # Upload HTML files to S3 (bonus step)
     - name: Upload HTML files to S3
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: |
