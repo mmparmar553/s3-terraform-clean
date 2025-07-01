@@ -1,0 +1,109 @@
+name: 'Terraform Destroy S3 Bucket'
+
+on:
+  workflow_dispatch:  # Manual trigger only
+    inputs:
+      confirm_destroy:
+        description: 'Type "DESTROY" to confirm deletion'
+        required: true
+        type: string
+
+permissions:
+  id-token: write   # Required for OIDC token
+  contents: read    # Required to checkout code
+
+env:
+  TF_VERSION: '1.6.6'
+  AWS_REGION: 'us-east-1'
+
+jobs:
+  destroy:
+    name: 'Terraform Destroy'
+    runs-on: ubuntu-latest
+    environment: production
+    if: github.event.inputs.confirm_destroy == 'DESTROY'
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials using IAM Role
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActions-S3-Role
+        aws-region: ${{ env.AWS_REGION }}
+        role-session-name: GitHubActions-Destroy-Session
+
+    - name: Verify AWS Identity
+      run: |
+        echo "🔐 Current AWS Identity:"
+        aws sts get-caller-identity
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+
+    - name: Terraform Init
+      run: terraform init
+
+    - name: Empty S3 Bucket First
+      run: |
+        echo "🗑️ Emptying S3 bucket: ${{ secrets.S3_BUCKET_NAME }}"
+        
+        # Check if bucket exists
+        if aws s3api head-bucket --bucket "${{ secrets.S3_BUCKET_NAME }}" 2>/dev/null; then
+          echo "Bucket exists, emptying contents..."
+          
+          # Remove all objects
+          aws s3 rm s3://${{ secrets.S3_BUCKET_NAME }} --recursive || echo "No objects to delete"
+          
+          # Delete all object versions (for versioned buckets)
+          aws s3api list-object-versions --bucket "${{ secrets.S3_BUCKET_NAME }}" --output json | \
+          jq -r '.Versions[]? | "\(.Key) \(.VersionId)"' | \
+          while read key version; do
+            if [ -n "$key" ] && [ -n "$version" ]; then
+              aws s3api delete-object --bucket "${{ secrets.S3_BUCKET_NAME }}" --key "$key" --version-id "$version"
+            fi
+          done
+          
+          # Delete all delete markers
+          aws s3api list-object-versions --bucket "${{ secrets.S3_BUCKET_NAME }}" --output json | \
+          jq -r '.DeleteMarkers[]? | "\(.Key) \(.VersionId)"' | \
+          while read key version; do
+            if [ -n "$key" ] && [ -n "$version" ]; then
+              aws s3api delete-object --bucket "${{ secrets.S3_BUCKET_NAME }}" --key "$key" --version-id "$version"
+            fi
+          done
+          
+          echo "✅ Bucket emptied successfully"
+        else
+          echo "⚠️ Bucket doesn't exist or not accessible"
+        fi
+
+    - name: Terraform Plan Destroy
+      run: |
+        terraform plan -destroy -input=false \
+          -var="bucket_name=${{ secrets.S3_BUCKET_NAME }}" \
+          -var="environment=prod" \
+          -out=destroy-plan
+
+    - name: Terraform Destroy
+      run: |
+        echo "🚨 DESTROYING INFRASTRUCTURE..."
+        terraform apply -auto-approve destroy-plan
+        echo "✅ Infrastructure destroyed successfully"
+
+    - name: Verify Destruction
+      run: |
+        echo "🔍 Verifying bucket destruction..."
+        if aws s3api head-bucket --bucket "${{ secrets.S3_BUCKET_NAME }}" 2>/dev/null; then
+          echo "❌ Bucket still exists!"
+          exit 1
+        else
+          echo "✅ Bucket successfully destroyed"
+        fi
