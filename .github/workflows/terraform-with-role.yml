@@ -2,12 +2,9 @@ name: 'Terraform S3 Bucket Deployment (IAM Role)'
 
 on:
   push:
-    branches:
-      - main
-      - develop
+    branches: [ "main" ]
   pull_request:
-    branches:
-      - main
+    branches: [ "main" ]
 
 permissions:
   id-token: write   # Required for OIDC token
@@ -23,17 +20,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
 
-    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
     defaults:
       run:
         shell: bash
 
     steps:
-    # Checkout the repository to the GitHub Actions runner
     - name: Checkout
       uses: actions/checkout@v4
 
-    # Configure AWS credentials using IAM Role (more secure than access keys)
     - name: Configure AWS credentials using IAM Role
       uses: aws-actions/configure-aws-credentials@v4
       with:
@@ -41,59 +35,49 @@ jobs:
         aws-region: ${{ env.AWS_REGION }}
         role-session-name: GitHubActions-Terraform-Session
 
-    # Verify AWS Identity (for debugging)
     - name: Verify AWS Identity
       run: |
-        echo "🔐 Current AWS Identity:"
+        echo "Current AWS Identity:"
         aws sts get-caller-identity
-        echo "📊 AWS Identity verified successfully!"
+        echo "Available S3 buckets:"
+        aws s3 ls
 
-    # Install the latest version of Terraform CLI
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: ${{ env.TF_VERSION }}
 
-    # Initialize a new or existing Terraform working directory
     - name: Terraform Init
       run: terraform init
 
-    # Checks that all Terraform configuration files adhere to a canonical format
     - name: Terraform Format
       run: terraform fmt -check
 
-    # Validates the configuration files in a directory
     - name: Terraform Validate
       run: terraform validate
 
-    # Generates an execution plan for Terraform
     - name: Terraform Plan
       run: |
         terraform plan -input=false \
           -var="bucket_name=${{ secrets.S3_BUCKET_NAME }}" \
-          -var="environment=${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}" \
+          -var="environment=prod" \
           -out=tfplan
 
-    # Apply the Terraform plan (only on push to main branch)
     - name: Terraform Apply
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: terraform apply -auto-approve tfplan
 
-    # Show outputs
     - name: Terraform Output
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: terraform output
 
-    # Upload HTML files to S3 (bonus step)
-    - name: Upload HTML files to S3
+    - name: Upload files to S3 (if bucket created)
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: |
-        echo "📤 Uploading HTML files to S3..."
+        # Upload any HTML files to the bucket
         if [ -f "terraform-flow-diagram.html" ]; then
           aws s3 cp terraform-flow-diagram.html s3://${{ secrets.S3_BUCKET_NAME }}/ --content-type "text/html"
-          echo "✅ Flow diagram uploaded"
         fi
         if [ -f "index.html" ]; then
           aws s3 cp index.html s3://${{ secrets.S3_BUCKET_NAME }}/ --content-type "text/html"
-          echo "✅ Index page uploaded"
         fi

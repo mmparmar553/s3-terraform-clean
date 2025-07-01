@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S3 Terraform Project Files</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 600px;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+        .file-link {
+            display: block;
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            padding: 20px;
+            margin: 20px 0;
+            text-decoration: none;
+            border-radius: 10px;
+            font-size: 1.2em;
+            font-weight: bold;
+            transition: transform 0.3s ease;
+        }
+        .file-link:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(52, 152, 219, 0.3);
+        }
+        .description {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        .bucket-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #27ae60;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 S3 Terraform Project</h1>
+        <div class="description">
+            This S3 bucket contains files for the Terraform deployment project. 
+            The interactive flow diagram shows the complete CI/CD pipeline from local development to AWS deployment.
+        </div>
+        
+        <div class="bucket-info">
+            <strong>Bucket:</strong> xxxxxxx-321312321312-s3<br>
+            <strong>Region:</strong> us-east-1<br>
+            <strong>Created:</strong> Via GitHub Actions & Terraform
+        </div>
+        
+        <a href="terraform-flow-diagram.html" class="file-link">
+            📊 View Interactive Flow Diagram
+        </a>
+        
+        <div class="description">
+            <small>
+                <strong>Note:</strong> This bucket has public access blocked for security. 
+                Files can be accessed through authenticated AWS requests or by temporarily 
+                adjusting bucket policies for specific objects.
+            </small>
+        </div>
+    </div>
+</body>
+</html>
