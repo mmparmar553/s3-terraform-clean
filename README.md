@@ -4,6 +4,11 @@ This project creates an AWS S3 bucket using Terraform and deploys it via GitHub 
 
 🚀 **Status**: Ready for deployment!
 
+## 🔄 **Current Deployment**
+- **Bucket Name**: `xxxxxxx-321312321312-s3`
+- **Environment**: Production
+- **Deployment Method**: GitHub Actions + Terraform
+
 ## Features
 
 - **S3 Bucket**: Secure S3 bucket with encryption, versioning, and lifecycle policies
